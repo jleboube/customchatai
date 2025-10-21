@@ -30,6 +30,7 @@ model User {
   sessions      Session[]
   chats         Chat[]
   apiKeys       ApiKey[]
+  usageMetrics  UsageMetric[]
 
   @@map("users")
 }
@@ -126,4 +127,23 @@ model RateLimit {
   updatedAt DateTime @updatedAt
 
   @@map("rate_limits")
+}
+
+model UsageMetric {
+  id              String   @id @default(cuid())
+  userId          String
+  model           String
+  promptTokens    Int      @default(0)
+  completionTokens Int     @default(0)
+  totalTokens     Int      @default(0)
+  responseTimeMs  Int      // Response time in milliseconds
+  endpoint        String   // e.g., "/api/chat/message" or "/api/v1/chat/completions"
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([model])
+  @@index([createdAt])
+  @@map("usage_metrics")
 }

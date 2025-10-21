@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rateLimit'
+import { trackUsage, estimateTokens } from '@/lib/analytics'
 
 // POST /api/v1/chat/completions - OpenAI-compatible chat completions endpoint
 export async function POST(req: NextRequest) {
+  const startTime = Date.now()
+
   try {
     // Extract API key from Authorization header
     const authHeader = req.headers.get('Authorization')
@@ -98,6 +101,13 @@ export async function POST(req: NextRequest) {
     // Handle non-streaming response - Convert Ollama format to OpenAI format
     const ollamaData = await llmResponse.json()
 
+    // Calculate token estimates
+    const promptText = messages.map((m: { content: string }) => m.content).join(' ')
+    const completionText = ollamaData.message?.content || ''
+    const promptTokens = estimateTokens(promptText)
+    const completionTokens = estimateTokens(completionText)
+    const totalTokens = promptTokens + completionTokens
+
     // Convert Ollama response format to OpenAI format
     const openaiData = {
       id: `chatcmpl-${Date.now()}`,
@@ -109,17 +119,28 @@ export async function POST(req: NextRequest) {
           index: 0,
           message: {
             role: ollamaData.message?.role || 'assistant',
-            content: ollamaData.message?.content || '',
+            content: completionText,
           },
           finish_reason: 'stop',
         },
       ],
       usage: {
-        prompt_tokens: 0,
-        completion_tokens: 0,
-        total_tokens: 0,
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
       },
     }
+
+    // Track usage metrics
+    const responseTime = Date.now() - startTime
+    await trackUsage({
+      userId: key.userId,
+      model,
+      promptTokens,
+      completionTokens,
+      responseTimeMs: responseTime,
+      endpoint: '/api/v1/chat/completions',
+    })
 
     return NextResponse.json(openaiData, {
       headers: {

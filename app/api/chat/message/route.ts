@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { trackUsage, estimateTokens } from '@/lib/analytics'
 
 // POST /api/chat/message - Send a message and get AI response
 export async function POST(req: NextRequest) {
+  const startTime = Date.now()
+
   try {
     const session = await getServerSession(authOptions)
 
@@ -117,6 +120,20 @@ export async function POST(req: NextRequest) {
     await prisma.chat.update({
       where: { id: chat.id },
       data: { updatedAt: new Date() },
+    })
+
+    // Track usage metrics
+    const responseTime = Date.now() - startTime
+    const promptTokens = estimateTokens(message)
+    const completionTokens = estimateTokens(assistantContent)
+
+    await trackUsage({
+      userId: session.user.id,
+      model,
+      promptTokens,
+      completionTokens,
+      responseTimeMs: responseTime,
+      endpoint: '/api/chat/message',
     })
 
     return NextResponse.json({

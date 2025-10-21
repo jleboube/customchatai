@@ -112,10 +112,22 @@ export default function AdminDashboard() {
             </h1>
             <div className="flex gap-3">
               <Link
+                href="/admin/analytics"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                Analytics
+              </Link>
+              <Link
                 href="/admin/models"
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
               >
                 Manage Models
+              </Link>
+              <Link
+                href="/admin/api-keys"
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+              >
+                API Keys
               </Link>
               <Link
                 href="/dashboard"
