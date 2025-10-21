@@ -1,0 +1,83 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: customchatai-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://chatuser:${POSTGRES_PASSWORD:-chatpass}@db:5432/customchatai
+      - LLM_API_BASE_URL=http://model-runner:11434/v1
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      # NEXTAUTH_SECRET will be auto-generated if not provided
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-100}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60000}
+    depends_on:
+      db:
+        condition: service_healthy
+      model-runner:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  db:
+    image: postgres:16-alpine
+    container_name: customchatai-db
+    environment:
+      - POSTGRES_USER=chatuser
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-chatpass}
+      - POSTGRES_DB=customchatai
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatuser -d customchatai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  model-runner:
+    image: ollama/ollama:latest
+    container_name: customchatai-model-runner
+    # Port mapping commented out since local Ollama is running on 11434
+    # Uncomment if you don't have a local Ollama instance:
+    # ports:
+    #   - "11434:11434"
+    volumes:
+      - model-data:/root/.ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    # For CPU-only inference, no GPU configuration needed
+    # If you have a GPU, uncomment the following:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  db-data:
+    driver: local
+  model-data:
+    driver: local
+
+networks:
+  default:
+    name: customchatai-network
