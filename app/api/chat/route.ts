@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { model = 'llama3' } = body
+    const { model = 'llama3.2:3b' } = body
 
     const chat = await prisma.chat.create({
       data: {
